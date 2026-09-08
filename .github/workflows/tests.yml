@@ -1,0 +1,35 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: ${{ matrix.script }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        script:
+          - test_1_07_curler.sh
+          - test_1_08_web_server.sh
+          - test_1_09_bind_mount_log.sh
+          - test_1_10_web_server_port.sh
+          - test_1_11_spring_example.sh
+          - test_1_12_frontend_port.sh
+          - test_1_13_backend_ping.sh
+          - test_1_14_frontend_backend_integration.sh
+    steps:
+      - uses: actions/checkout@v5
+
+      # Playwright (used by the frontend-driving tests) requires Node 20+;
+      # pin it explicitly instead of relying on the runner image's default.
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+
+      - name: Run ${{ matrix.script }}
+        working-directory: tests
+        run: bash ${{ matrix.script }}
