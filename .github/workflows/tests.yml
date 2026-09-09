@@ -21,6 +21,7 @@ jobs:
           - test_1_12_frontend_port.sh
           - test_1_13_backend_ping.sh
           - test_1_14_frontend_backend_integration.sh
+          - test_1_15_or_1_16.sh
     steps:
       - uses: actions/checkout@v5
 
