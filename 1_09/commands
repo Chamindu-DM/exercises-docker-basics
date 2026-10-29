@@ -1,1 +1,2 @@
-docker run --mount type=bind,src=$(pwd)/service.log,dst=/usr/src/app/text.log devopsdockeruh/simple-web-service
+touch service.log
+docker run --mount type=bind,source="$(pwd)/service.log",target=/usr/src/app/text.log devopsdockeruh/simple-web-service
