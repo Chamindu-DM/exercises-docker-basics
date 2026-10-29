@@ -267,6 +267,15 @@ grep -qE '^\s*ENV\s+REQUEST_ORIGIN' "$BACKEND_DOCKERFILE" \
   || fail "REQUEST_ORIGIN is set neither by ENV in 1_14/Dockerfile.backend nor by -e in the backend's docker run (needed for the CORS check, per the backend README)"
 pass "REQUEST_ORIGIN is set for the backend"
 
+# The browser's Origin header must match REQUEST_ORIGIN, so open the frontend
+# on the same host the student configured (localhost or 127.0.0.1). A -e on
+# the docker run line overrides the Dockerfile's ENV.
+REQUEST_ORIGIN_VALUE="$(grep -E '^\s*ENV\s+REQUEST_ORIGIN' "$BACKEND_DOCKERFILE" | tail -1 | sed -E 's/^[[:space:]]*ENV[[:space:]]+REQUEST_ORIGIN([[:space:]]*=[[:space:]]*|[[:space:]]+)//' | tr -d '"'"'"'"')"
+run_origin="$(printf '%s\n' ${BACKEND_RUN_ENVS[@]+"${BACKEND_RUN_ENVS[@]}"} | grep -E '^REQUEST_ORIGIN=' | tail -1 | sed -E 's/^REQUEST_ORIGIN=//')"
+[ -n "$run_origin" ] && REQUEST_ORIGIN_VALUE="$run_origin"
+FRONTEND_HOST="localhost"
+printf '%s' "$REQUEST_ORIGIN_VALUE" | grep -qE '127\.0\.0\.1' && FRONTEND_HOST="127.0.0.1"
+
 echo "Building both images -- this involves an npm build and a go build, and may take a while..."
 docker build ${FRONTEND_BUILD_ARGS[@]+"${FRONTEND_BUILD_ARGS[@]}"} -t "$FRONTEND_BUILD_IMAGE" -f "$FRONTEND_DOCKERFILE" "$FRONTEND_CONTEXT" >/dev/null 2>&1 \
   || fail "docker build failed for 1_14/Dockerfile.frontend with context $FRONTEND_CONTEXT"
@@ -314,8 +323,8 @@ command -v node >/dev/null 2>&1 || fail "node is required to run the browser che
 (cd "$PLAYWRIGHT_DIR" && npx --yes playwright install --with-deps chromium >/dev/null 2>&1) \
   || fail "playwright chromium install failed"
 
-node "$PLAYWRIGHT_DIR/check-exercise-button.mjs" "http://localhost:$FRONTEND_PORT" backend \
-  || fail "pressing the \"1.14\"/backend button in the frontend did not report success"
+node "$PLAYWRIGHT_DIR/check-exercise-button.mjs" "http://$FRONTEND_HOST:$FRONTEND_PORT" backend \
+  || fail "pressing the \"1.14\"/backend button in the frontend (opened at http://$FRONTEND_HOST:$FRONTEND_PORT) did not report success -- check that REQUEST_ORIGIN matches that origin exactly (scheme, host and port, no trailing slash)"
 pass "pressing the backend button in the frontend reported success (turned green)"
 
 echo "All tests passed"
