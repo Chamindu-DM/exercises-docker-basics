@@ -99,8 +99,11 @@ IMAGE_TO_RUN="$RUN_IMAGE"
 # above, respecting docker's requirement that such flags appear before the
 # image name.
 if [ -n "$RUN_PORT_RAW" ]; then
-  HOST_PORT="$(echo "$RUN_PORT_RAW" | grep -oE '^[0-9]+')"
-  [ -n "$HOST_PORT" ] || fail "could not read the host port out of the -p/--publish argument in 1_10/commands"
+  HOST_PORT="$(docker_publish_ports "$RUN_PORT_RAW" | cut -f1)"
+  RUN_CONTAINER_PORT="$(docker_publish_ports "$RUN_PORT_RAW" | cut -f2)"
+  [ -n "$HOST_PORT" ] || fail "the -p/--publish argument in 1_10/commands (\"$RUN_PORT_RAW\") gives no host port, so docker would publish the service on a random one"
+  [ "$RUN_CONTAINER_PORT" = "8080" ] \
+    || fail "1_10/commands publishes container port $RUN_CONTAINER_PORT, but the web server listens on port 8080"
   pass "run command publishes host port $HOST_PORT"
 
   docker run -d --name "$CONTAINER" -p "$HOST_PORT:8080" "$IMAGE_TO_RUN" >/dev/null 2>&1 \

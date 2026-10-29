@@ -94,18 +94,14 @@ pass "build context resolves to $BUILD_CONTEXT"
 # docker option there, so it must not count.
 RUN_PORT_RAW="$(docker_run_parse "$RUN_LINE" | cut -f2)"
 [ -n "$RUN_PORT_RAW" ] || fail "1_12/commands' docker run command does not publish a port with -p/--publish before the image name"
-HOST_PORT="$(echo "$RUN_PORT_RAW" | grep -oE '^[0-9]+')"
-[ -n "$HOST_PORT" ] || fail "could not read the host port out of the -p/--publish argument in 1_12/commands"
+HOST_PORT="$(docker_publish_ports "$RUN_PORT_RAW" | cut -f1)"
+[ -n "$HOST_PORT" ] || fail "the -p/--publish argument in 1_12/commands (\"$RUN_PORT_RAW\") gives no host port, so docker would publish the app on a random one"
 [ "$HOST_PORT" = "5001" ] || fail "1_12/commands publishes host port $HOST_PORT, but the app must be accessible on host port 5001"
 pass "run command publishes host port $HOST_PORT"
 
 # Container-side port from the same -p/--publish argument (the part after
-# ":", or the same value as the host port if no ":" was given).
-if [[ "$RUN_PORT_RAW" == *:* ]]; then
-  RUN_CONTAINER_PORT="$(echo "$RUN_PORT_RAW" | awk -F: '{print $NF}' | grep -oE '^[0-9]+')"
-else
-  RUN_CONTAINER_PORT="$HOST_PORT"
-fi
+# the last ":").
+RUN_CONTAINER_PORT="$(docker_publish_ports "$RUN_PORT_RAW" | cut -f2)"
 [ -n "$RUN_CONTAINER_PORT" ] || fail "could not read the container-side port out of the -p/--publish argument in 1_12/commands"
 
 # The port the image actually serves on, per the Dockerfile's CMD (the

@@ -102,8 +102,11 @@ pass "Dockerfile resolves to $BUILD_DOCKERFILE"
 # instead), so it must not count -- docker_run_parse enforces that.
 RUN_PORT_RAW="$(docker_run_parse "$RUN_LINE" | cut -f2)"
 [ -n "$RUN_PORT_RAW" ] || fail "1_11/commands' docker run command does not publish a port with -p/--publish before the image name"
-HOST_PORT="$(echo "$RUN_PORT_RAW" | grep -oE '^[0-9]+')"
-[ -n "$HOST_PORT" ] || fail "could not read the host port out of the -p/--publish argument in 1_11/commands"
+HOST_PORT="$(docker_publish_ports "$RUN_PORT_RAW" | cut -f1)"
+RUN_CONTAINER_PORT="$(docker_publish_ports "$RUN_PORT_RAW" | cut -f2)"
+[ -n "$HOST_PORT" ] || fail "the -p/--publish argument in 1_11/commands (\"$RUN_PORT_RAW\") gives no host port, so docker would publish the app on a random one"
+[ "$RUN_CONTAINER_PORT" = "8080" ] \
+  || fail "1_11/commands publishes container port $RUN_CONTAINER_PORT, but the Spring app listens on port 8080"
 pass "run command publishes host port $HOST_PORT"
 
 echo "Building the Spring image -- this involves a Maven build and may take a while..."

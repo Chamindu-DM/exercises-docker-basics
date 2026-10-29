@@ -65,8 +65,9 @@ MOUNT_HOST=""
 MOUNT_CONTAINER=""
 if echo "$RUN_LINE" | grep -qE '(--mount)[[:space:]=]'; then
   MOUNT_ARG="$(echo "$RUN_LINE" | grep -oE '\-\-mount[[:space:]=]+[^[:space:]]+(["'"'"'][^"'"'"']*["'"'"'])?' | head -1)"
-  MOUNT_HOST="$(echo "$MOUNT_ARG" | grep -oE 'source="?[^,[:space:]"]+' | sed -E 's/^source="?//')"
-  MOUNT_CONTAINER="$(echo "$MOUNT_ARG" | grep -oE 'target="?[^,[:space:]"]+' | sed -E 's/^target="?//')"
+  # docker accepts source/src and target/destination/dst as the key names.
+  MOUNT_HOST="$(echo "$MOUNT_ARG" | grep -oE '(^|[,[:space:]=])(source|src)="?[^,[:space:]"]+' | sed -E 's/^[,[:space:]=]?(source|src)="?//')"
+  MOUNT_CONTAINER="$(echo "$MOUNT_ARG" | grep -oE '(^|[,[:space:]=])(target|destination|dst)="?[^,[:space:]"]+' | sed -E 's/^[,[:space:]=]?(target|destination|dst)="?//')"
 else
   VOL_ARG="$(echo "$RUN_LINE" | grep -oE '(-v|--volume)[[:space:]=]+"?[^[:space:]"]+' | head -1 | sed -E 's/^(-v|--volume)[[:space:]=]+"?//')"
   [ -n "$VOL_ARG" ] || fail "1_09/commands' docker run command does not bind-mount anything with -v/--volume/--mount"

@@ -88,3 +88,61 @@ docker_run_parse() {
 
   printf '%s\t%s\t%s\n' "$image" "$port" "$publish_all"
 }
+
+# Splits a -p/--publish value into its host and container ports and echoes
+# them tab-separated: <host-port-or-empty>\t<container-port>
+# Accepts every form docker does: CONTAINER, HOST:CONTAINER,
+# IP:HOST:CONTAINER, IP::CONTAINER, [IPv6]:HOST:CONTAINER, each optionally
+# with a /tcp or /udp suffix. The host port is empty when none was given,
+# in which case docker picks a random one.
+docker_publish_ports() {
+  local spec="${1%/*}"
+  local container="${spec##*:}" host=""
+  if [[ "$spec" == *:* ]]; then
+    local rest="${spec%:*}"
+    host="${rest##*:}"
+  fi
+  printf '%s\t%s\n' "$host" "$container"
+}
+
+# Echoes the value of every -e/--env flag given to a "docker run ..." line
+# before the image name, one per line (e.g. "REQUEST_ORIGIN=http://..."),
+# with a single layer of surrounding quotes stripped. Flags after the image
+# name are container arguments, not docker options, so they are ignored.
+docker_run_env_flags() {
+  local line="$1"
+  local rest
+  rest="$(echo "$line" | sed -E 's/^.*docker[[:space:]]+run[[:space:]]*//')"
+
+  local -a toks
+  read -r -a toks <<< "$rest"
+
+  local i=0 tok flagname flagvalue
+  while [ "$i" -lt "${#toks[@]}" ]; do
+    tok="${toks[$i]}"
+    case "$tok" in
+      -*)
+        if [[ "$tok" == *=* ]]; then
+          flagname="${tok%%=*}"
+          flagvalue="${tok#*=}"
+        else
+          flagname="$tok"
+          flagvalue=""
+        fi
+
+        if [ -z "$flagvalue" ] && _docker_run_is_value_flag "$flagname"; then
+          i=$((i + 1))
+          flagvalue="${toks[$i]}"
+        fi
+
+        if [ "$flagname" = "-e" ] || [ "$flagname" = "--env" ]; then
+          echo "$flagvalue" | sed -E 's/^"(.*)"$/\1/; s/^'"'"'(.*)'"'"'$/\1/'
+        fi
+        ;;
+      *)
+        break
+        ;;
+    esac
+    i=$((i + 1))
+  done
+}
