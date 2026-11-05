@@ -1,0 +1,2 @@
+docker build -t frontend-project .
+docker run -p 5001:5001 frontend-project
