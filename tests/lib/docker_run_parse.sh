@@ -146,3 +146,55 @@ docker_run_env_flags() {
     i=$((i + 1))
   done
 }
+
+# Flags of "docker build" that consume a following token as their value,
+# unless given in the "--flag=value" form. Not necessarily exhaustive, but
+# covers what this course's exercises use.
+_DOCKER_BUILD_VALUE_FLAGS=(
+  -t --tag -f --file --build-arg --platform --target --label --network
+  --secret --ssh --cache-from --cache-to --add-host --iidfile --progress
+  -o --output --shm-size -m --memory --memory-swap --ulimit --cgroup-parent
+  --isolation --build-context --builder --metadata-file --annotation
+  --attest --allow --call --cpu-shares -c --cpu-period --cpu-quota
+  --cpuset-cpus --cpuset-mems --security-opt
+)
+
+_docker_build_is_value_flag() {
+  local f="$1" candidate
+  for candidate in "${_DOCKER_BUILD_VALUE_FLAGS[@]}"; do
+    [ "$f" = "$candidate" ] && return 0
+  done
+  return 1
+}
+
+# Echoes the build context of a "docker build ..." line: the first argument
+# that is neither an option nor an option's value. Docker accepts it in any
+# position ("docker build . -t name" as well as "docker build -t name ."),
+# so the last token is not reliable. Anything after "&&", ";" or "|" is a
+# separate command and is ignored. Echoes nothing if no context is given.
+docker_build_context() {
+  local line="$1"
+  local rest
+  rest="$(echo "$line" | sed -E 's/^.*docker[[:space:]]+(buildx[[:space:]]+|image[[:space:]]+)?build[[:space:]]*//; s/[[:space:]]*(&&|;|\|).*$//')"
+
+  local -a toks
+  read -r -a toks <<< "$rest"
+
+  local i=0 tok flagname
+  while [ "$i" -lt "${#toks[@]}" ]; do
+    tok="${toks[$i]}"
+    case "$tok" in
+      -*)
+        flagname="${tok%%=*}"
+        if [[ "$tok" != *=* ]] && _docker_build_is_value_flag "$flagname"; then
+          i=$((i + 1))
+        fi
+        ;;
+      *)
+        echo "$tok" | sed -E 's/^"(.*)"$/\1/; s/^'"'"'(.*)'"'"'$/\1/'
+        return 0
+        ;;
+    esac
+    i=$((i + 1))
+  done
+}

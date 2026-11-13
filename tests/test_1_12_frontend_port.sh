@@ -74,7 +74,8 @@ pass "build tags the image \"$BUILD_IMAGE\""
 # Build context, tolerant of being relative to 1_12/, tehtavat/, the repo
 # root, or given as-is (source lives directly in 1_12/, so "." is expected,
 # but don't assume it).
-BUILD_CONTEXT_RAW="$(echo "$BUILD_LINE" | awk '{print $NF}')"
+BUILD_CONTEXT_RAW="$(docker_build_context "$BUILD_LINE")"
+[ -n "$BUILD_CONTEXT_RAW" ] || fail "could not find the build context (e.g. \".\") in the docker build command in 1_12/commands"
 BUILD_CONTEXT=""
 for candidate in \
   "$TARGET_DIR/$BUILD_CONTEXT_RAW" \

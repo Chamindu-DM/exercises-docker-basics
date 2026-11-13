@@ -54,12 +54,13 @@ BUILD_IMAGE="$(echo "$BUILD_LINE" | grep -oE '(-t|--tag)[[:space:]=]+[^[:space:]
 [ -n "$BUILD_IMAGE" ] || fail "could not read the image name/tag (a \"-t <name>\" argument) out of the docker build command in 1_11/commands"
 pass "build tags the image \"$BUILD_IMAGE\""
 
-# Build context -- the last whitespace-separated token on the build line,
-# unless -f/--file is used and the context is actually an earlier token
-# (docker build [opts] -f <dockerfile> <context> or <context> -f
-# <dockerfile>). Try candidate resolutions relative to 1_11/, tehtavat/,
-# the repo root, and as given, same as exercise 1.10.
-BUILD_CONTEXT_RAW="$(echo "$BUILD_LINE" | awk '{print $NF}')"
+# Build context -- the first argument on the build line that is neither an
+# option nor an option's value, wherever it is placed (both "docker build
+# . -t name" and "docker build -t name ." are valid). Try candidate
+# resolutions relative to 1_11/, tehtavat/, the repo root, and as given,
+# same as exercise 1.10.
+BUILD_CONTEXT_RAW="$(docker_build_context "$BUILD_LINE")"
+[ -n "$BUILD_CONTEXT_RAW" ] || fail "could not find the build context (e.g. \".\") in the docker build command in 1_11/commands"
 BUILD_CONTEXT=""
 for candidate in \
   "$TARGET_DIR/$BUILD_CONTEXT_RAW" \

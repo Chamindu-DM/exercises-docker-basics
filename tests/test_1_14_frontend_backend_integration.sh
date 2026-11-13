@@ -81,20 +81,32 @@ pass "Dockerfile.frontend is based on ubuntu, Dockerfile.backend is based on gol
 # project has), not just any existing directory.
 check_copy_target() {
   local dockerfile="$1" marker_file="$2" label="$3"
-  local copy_src resolved
-  copy_src="$(grep -oE '^\s*COPY\s+[^[:space:]]+' "$dockerfile" | grep -v -- '--from' | head -1 | awk '{print $2}')"
-  [ -n "$copy_src" ] || fail "$label has no COPY directive"
-  [ "$copy_src" != "." ] \
+  local copy_srcs=() copy_src resolved line args has_dot=""
+  # Every COPY counts, and every source of each one (all args but the last),
+  # so copying single files first (e.g. go.mod for layer caching) is fine.
+  while IFS= read -r line; do
+    args=()
+    read -ra words <<< "$line"
+    for arg in "${words[@]}"; do
+      case "$arg" in COPY|--*) ;; *) args+=("$arg") ;; esac
+    done
+    [ "${#args[@]}" -ge 2 ] && copy_srcs+=("${args[@]:0:${#args[@]}-1}")
+  done < <(grep -E '^\s*COPY\s' "$dockerfile" | grep -v -- '--from' | sed -E 's/^[[:space:]]*//')
+  [ "${#copy_srcs[@]}" -gt 0 ] || fail "$label has no COPY directive"
+  for copy_src in "${copy_srcs[@]}"; do
+    [ "$copy_src" = "." ] && has_dot=1
+    resolved="$(cd "$(dirname "$dockerfile")" 2>/dev/null && norm_path "$copy_src")"
+    if [ -z "$resolved" ] || [ ! -f "$resolved/$marker_file" ]; then
+      resolved="$(cd "$REPO_ROOT" 2>/dev/null && norm_path "$copy_src")"
+    fi
+    if [ -n "$resolved" ] && [ -f "$resolved/$marker_file" ]; then
+      pass "$label's COPY directive points at the real project ($copy_src)"
+      return 0
+    fi
+  done
+  [ -z "$has_dot" ] \
     || fail "$label still has an unaltered \"COPY . .\" -- the project no longer lives alongside this Dockerfile, so the COPY source path needs to point at it"
-  resolved="$(cd "$(dirname "$dockerfile")" 2>/dev/null && norm_path "$copy_src")"
-  if [ -z "$resolved" ] || [ ! -f "$resolved/$marker_file" ]; then
-    resolved="$(cd "$REPO_ROOT" 2>/dev/null && norm_path "$copy_src")"
-  fi
-  [ -n "$resolved" ] \
-    || fail "$label's COPY source \"$copy_src\" does not exist (checked relative to both 1_14/ and the repo root)"
-  [ -f "$resolved/$marker_file" ] \
-    || fail "$label's COPY source \"$copy_src\" does not resolve to the project directory (expected to find $marker_file there)"
-  pass "$label's COPY directive points at the real project ($copy_src)"
+  fail "none of $label's COPY sources (${copy_srcs[*]}) resolve to the project directory (expected to find $marker_file there, checked relative to both 1_14/ and the repo root)"
 }
 check_copy_target "$FRONTEND_DOCKERFILE" "package.json" "1_14/Dockerfile.frontend"
 check_copy_target "$BACKEND_DOCKERFILE" "go.mod" "1_14/Dockerfile.backend"
@@ -149,7 +161,8 @@ for line in "${BUILD_LINES[@]}"; do
   img="$(echo "$line" | grep -oE '(-t|--tag)[[:space:]=]+[^[:space:]]+' | head -1 | sed -E 's/^(-t|--tag)[[:space:]=]+//')"
   [ -n "$img" ] || continue
 
-  raw_ctx="$(echo "$line" | awk '{print $NF}')"
+  raw_ctx="$(docker_build_context "$line")"
+  [ -n "$raw_ctx" ] || continue
   resolved_ctx="$(resolve_context "$raw_ctx" || true)"
   [ -n "$resolved_ctx" ] || continue
 
